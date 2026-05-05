@@ -1,0 +1,15 @@
+node_modules
+.pnpm-store
+
+.env
+.env.local
+
+dist
+build
+coverage
+
+apps/api/data/raw
+apps/api/data/import/debug-*.json
+
+.DS_Store
+Thumbs.db

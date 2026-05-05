@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SupportStatus {
+  UNSUPPORTED
+  PARTIAL
+  SUPPORTED
+}
+
+model RawCard {
+  id           String   @id @default(uuid())
+  source       String
+  sourceCardId String?
+  patch        String?
+  rawJson      Json
+  importedAt   DateTime @default(now())
+
+  card Card?
+}
+
+model Card {
+  id            String        @id @default(uuid())
+  rawCardId     String?       @unique
+  rawCard       RawCard?      @relation(fields: [rawCardId], references: [id])
+
+  name          String
+  hero          String?
+  type          String?
+  rarity        String?
+  size          String?
+  cooldown      Float?
+  damage        Float?
+  text          String?
+
+  source        String
+  patch         String?
+
+  supportStatus SupportStatus @default(UNSUPPORTED)
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
