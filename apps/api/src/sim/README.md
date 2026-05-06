@@ -124,3 +124,51 @@ The audit now uses runtime-aware classes instead of only `SUPPORTED/PARTIAL/UNSU
 - `UNSUPPORTED` - truly unknown or unclassified behavior.
 
 The key number for fight accuracy is `Player-board combat supported`, not total imported effects. Configurable and non-combat effects are not failures: they are inputs the UI should eventually expose and pass into the simulator as initial board/config state.
+
+## API/request bridge
+
+`simulate-board-request.ts` is the internal API-facing bridge. It accepts a frontend-shaped request, loads real cards from Postgres, applies `SimulationSetup`, runs the simulator, and returns a UI-friendly response.
+
+Smoke-test the request bridge from `apps/api`:
+
+```bash
+pnpm sim:request
+```
+
+Example request body for `POST /sim/simulate`:
+
+```json
+{
+  "source": "MOBALYTICS",
+  "items": [
+    { "name": "Old Saltclaw", "tier": "Gold", "slotIndex": 0 },
+    { "name": "28 Hour Fitness", "tier": "Gold", "slotIndex": 1 }
+  ],
+  "config": {
+    "durationSeconds": 14,
+    "enemyMaxHealth": 5000
+  },
+  "setup": {
+    "initialPlayerState": { "maxHealth": 1000 },
+    "initialEnemyState": { "shield": 0 },
+    "selectedEnchantments": [],
+    "appliedConfigEffects": [],
+    "initialItemOverrides": []
+  },
+  "options": {
+    "includeEvents": true,
+    "maxEvents": 250,
+    "includeBoard": true,
+    "includeFinalState": true,
+    "includeConfigurableEffects": true
+  }
+}
+```
+
+The API project now exposes:
+
+- `GET /health`
+- `GET /cards/search?q=<name>&source=MOBALYTICS&limit=20`
+- `POST /sim/simulate`
+
+The `/sim/simulate` route intentionally uses selected/configured inputs for enchantments, permanent effects, buy/sell/day effects, and item overrides. It does not randomize or mutate meta-game state inside the combat loop.

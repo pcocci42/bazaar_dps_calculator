@@ -11,7 +11,11 @@
     "import:mobalytics:html": "tsx src/imports/download-mobalytics-html.ts",
     "extract:mobalytics:items": "tsx src/imports/extract-mobalytics-items.ts",
     "import:mobalytics:db": "tsx src/imports/import-mobalytics-items-to-db.ts",
-    "audit:effects": "tsx src/imports/audit-card-effects.ts"
+    "audit:effects": "tsx src/imports/audit-card-effects.ts",
+    "sim:smoke": "tsx src/sim/run-smoke-tests.ts",
+    "sim:audit": "tsx src/sim/audit-runtime-coverage.ts",
+    "sim:real": "tsx src/sim/smoke-test-real-controlled-boards.ts",
+    "sim:request": "tsx src/sim/smoke-test-board-request.ts"
   },
   "keywords": [],
   "author": "",
