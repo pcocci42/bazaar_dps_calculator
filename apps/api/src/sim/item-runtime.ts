@@ -7,6 +7,44 @@ import { resolveEffect } from "./effects.js";
 import { resolveTriggeredEffects } from "./triggers.js";
 import { getCooldownRate } from "./statuses.js";
 import { emit, hasStatus, roundTime } from "./utils.js";
+import { isStaticEffectBlockedFromItemUse } from "./passive-effects.js";
+
+const MULTICAST_REPEAT_EFFECT_KINDS = new Set<string>([
+  "DAMAGE",
+  "SHIELD",
+  "HEAL",
+  "BURN",
+  "POISON",
+  "REGEN",
+  "HASTE",
+  "SLOW",
+  "FREEZE",
+  "CHILL",
+  "HEAT",
+  "CHARGE",
+  "RELOAD",
+  "DESTROY",
+  "REPAIR",
+  "FLYING_START",
+  "FLYING_STOP",
+]);
+
+const STAT_MUTATION_EFFECT_KINDS = new Set<string>([
+  "DAMAGE",
+  "SHIELD",
+  "HEAL",
+  "BURN",
+  "POISON",
+  "REGEN",
+  "COOLDOWN_MOD",
+  "MULTICAST_MOD",
+  "CRIT_CHANCE_MOD",
+  "CRIT_DAMAGE_MOD",
+  "AMMO_MOD",
+  "MAX_AMMO_MOD",
+  "VALUE_MOD",
+  "LIFESTEAL_MOD",
+]);
 
 export function tickItemCooldown(
   state: BattleState,
@@ -68,7 +106,7 @@ export function useItem(
     (effect) =>
       effect.condition === null &&
       !isRepeatedByMulticast(effect) &&
-      !isPassiveRuntimeStatText(effect.rawText)
+      !isStaticEffectBlockedFromItemUse(effect)
   );
 
   for (const effect of immediateEffects) {
@@ -77,7 +115,10 @@ export function useItem(
 
   const repeats = Math.max(1, Math.floor(item.multicast));
   const repeatedEffects = item.effects.filter(
-    (effect) => effect.condition === null && isRepeatedByMulticast(effect)
+    (effect) =>
+      effect.condition === null &&
+      isRepeatedByMulticast(effect) &&
+      !isStaticEffectBlockedFromItemUse(effect)
   );
 
   for (let i = 0; i < repeats; i += 1) {
@@ -89,33 +130,27 @@ export function useItem(
   resolveTriggeredEffects(state, "ITEM_USED", item, config);
 }
 
-function isPassiveRuntimeStatText(rawText: string): boolean {
-  return /\b(this|your|adjacent).+\b(has|have|are affected|cooldowns are|for each|for every)\b/i.test(rawText) || /\bfor each\b|\bfor every\b/i.test(rawText);
-}
-
-function isRepeatedByMulticast(effect: { kind: string; rawText: string; operation: string; unit: string | null }): boolean {
+function isRepeatedByMulticast(effect: {
+  kind: string;
+  rawText: string;
+  operation: string;
+  unit: string | null;
+}): boolean {
+  if (!MULTICAST_REPEAT_EFFECT_KINDS.has(effect.kind)) return false;
   if (isStatMutationText(effect)) return false;
 
-  return (
-    effect.kind === "DAMAGE" ||
-    effect.kind === "SHIELD" ||
-    effect.kind === "HEAL" ||
-    effect.kind === "BURN" ||
-    effect.kind === "POISON" ||
-    effect.kind === "REGEN" ||
-    effect.kind === "HASTE" ||
-    effect.kind === "SLOW" ||
-    effect.kind === "FREEZE" ||
-    effect.kind === "CHARGE" ||
-    effect.kind === "RELOAD" ||
-    effect.kind === "DESTROY" ||
-    effect.kind === "REPAIR" ||
-    effect.kind === "FLYING_START" ||
-    effect.kind === "FLYING_STOP"
-  );
+  return true;
 }
 
-function isStatMutationText(effect: { kind: string; rawText: string; operation: string; unit: string | null }): boolean {
+function isStatMutationText(effect: {
+  kind: string;
+  rawText: string;
+  operation: string;
+  unit: string | null;
+}): boolean {
+  if (!STAT_MUTATION_EFFECT_KINDS.has(effect.kind)) return false;
+  if (isDirectImmediateEffectText(effect.rawText)) return false;
+
   if (effect.unit === "multiplier") return true;
 
   if (
@@ -125,8 +160,19 @@ function isStatMutationText(effect: { kind: string; rawText: string; operation: 
     effect.operation === "DOUBLE" ||
     effect.operation === "HALVE"
   ) {
-    return !/^\s*(deal|shield|heal|burn|poison|regen)\b/i.test(effect.rawText);
+    return true;
   }
 
-  return /\b(this|your|adjacent).+\b(gain|gains|has|have|loses|double|triple|quadruple)\b/i.test(effect.rawText);
+  return /\b(this|your|adjacent).+\b(gain|gains|has|have|loses|double|triple|quadruple)\b/i.test(
+    effect.rawText
+  );
+}
+
+function isDirectImmediateEffectText(rawText: string): boolean {
+  return (
+    /^\s*(deal|shield|heal|burn|poison|regen)\b/i.test(rawText) ||
+    /^\s*(haste|slow|freeze|chill|heat|charge|reload|repair|destroy)\b/i.test(rawText) ||
+    /^\s*gain\s+\+?\d+(?:\.\d+)?\s+rage\b/i.test(rawText) ||
+    /^\s*use\s+this\b/i.test(rawText)
+  );
 }

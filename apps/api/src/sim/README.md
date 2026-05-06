@@ -67,6 +67,20 @@ Validated by `run-smoke-tests.ts`:
 - Runtime formula/scaling patterns for player-board combat: percent of max health/stat, equal-to item stat, `for each adjacent/other tag`, multiplier effects, and half cooldown.
 - Simulation setup/config inputs: initial player/enemy state, item overrides, selected enchantments represented as board setup, and toggled pre-fight/configurable effects.
 
+
+## Passive/static fight effects
+
+Player-board stat modifiers that describe a board state for the fight are resolved once at fight start and are then skipped by normal `ITEM_USED` trigger resolution. This prevents passive sources such as `your Weapons gain +Damage for the fight` from stacking every time another item is used.
+
+Examples treated as one-time fight-start modifiers:
+
+- `your Weapons gain +15 Damage for the fight`
+- `Adjacent items have +1 Multicast`
+- `This has +1 Multicast for each adjacent Food`
+- `Your Friends' Cooldowns are reduced by 20%`
+
+Active event-driven combat conditions such as `When you Burn`, `When this is Hasted`, `When you Enrage`, and similar still resolve through the trigger system. Enchant/shop/permanent/day effects remain configurable setup inputs rather than automatic combat-loop actions.
+
 ## Simulation setup layer
 
 Use `simulateBattleWithSetup(setup)` when the UI/API needs to pass selected configuration into the fight. This keeps non-random choices outside the combat loop while still allowing them to affect the initial board accurately.

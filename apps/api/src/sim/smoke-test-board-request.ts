@@ -81,6 +81,29 @@ async function main() {
   if (result.summary.damageDealt <= 0) {
     throw new Error("Expected request simulation to deal damage.");
   }
+
+  const oldSaltclaw = result.board?.find((runtimeItem) => runtimeItem.name === "Old Saltclaw");
+  if (!oldSaltclaw) {
+    throw new Error("Expected Old Saltclaw in simulated board.");
+  }
+
+  if (oldSaltclaw.bonuses.damage !== 20) {
+    throw new Error(
+      `Expected Old Saltclaw to have exactly one passive board buff plus enchantment bonus: damageBonus=20, got ${oldSaltclaw.bonuses.damage}`
+    );
+  }
+
+  const passiveBuffEvents = result.events?.filter(
+    (event) =>
+      event.type === "ITEM_STAT_MODIFIED" &&
+      event.message.includes("28 Hour Fitness modified Old Saltclaw's damage")
+  ) ?? [];
+
+  if (passiveBuffEvents.length !== 1) {
+    throw new Error(
+      `Expected 28 Hour Fitness to buff Old Saltclaw exactly once, got ${passiveBuffEvents.length}`
+    );
+  }
 }
 
 main()

@@ -7,6 +7,7 @@ import type {
 } from "./types.js";
 import { resolveEffect } from "./effects.js";
 import { hasStatus } from "./utils.js";
+import { isStaticFightStartEffect } from "./passive-effects.js";
 
 export function resolveFightStartEffects(
   state: BattleState,
@@ -33,6 +34,7 @@ export function resolveTriggeredEffects(
 
     for (const effect of item.effects) {
       if (!effect.condition) continue;
+      if (shouldNeverResolveAsTriggered(item, effect)) continue;
 
       if (conditionMatchesEvent(effect.condition, eventType, eventSource, item, eventTarget)) {
         resolveEffect(state, item, effect, config, resolveTriggeredEffects);
@@ -42,6 +44,10 @@ export function resolveTriggeredEffects(
 }
 
 function shouldResolveAtFightStart(item: BattleItem, effect: RuntimeEffect): boolean {
+  if (isStaticFightStartEffect(item, effect)) return true;
+  if (isSelfCooldownHalfFightStartEffect(effect)) return true;
+  if (isSelfStatMultiplierFightStartEffect(effect)) return true;
+
   if (effect.condition) {
     const condition = effect.condition.toLowerCase();
 
@@ -49,12 +55,12 @@ function shouldResolveAtFightStart(item: BattleItem, effect: RuntimeEffect): boo
       condition.includes("start of each fight") ||
       condition.includes("start of the fight") ||
       condition.startsWith("for each") ||
-      condition === "heated" && hasStatus(item, "HEAT") ||
-      condition === "chilled" && hasStatus(item, "CHILL") ||
-      condition.includes("this is flying") && item.isFlying ||
-      condition.includes("this is hasted") && hasStatus(item, "HASTE") ||
-      condition.includes("this is slowed") && hasStatus(item, "SLOW") ||
-      condition.includes("this is frozen") && hasStatus(item, "FREEZE")
+      (condition === "heated" && hasStatus(item, "HEAT")) ||
+      (condition === "chilled" && hasStatus(item, "CHILL")) ||
+      (condition.includes("this is flying") && item.isFlying) ||
+      (condition.includes("this is hasted") && hasStatus(item, "HASTE")) ||
+      (condition.includes("this is slowed") && hasStatus(item, "SLOW")) ||
+      (condition.includes("this is frozen") && hasStatus(item, "FREEZE"))
     ) {
       return true;
     }
@@ -62,18 +68,52 @@ function shouldResolveAtFightStart(item: BattleItem, effect: RuntimeEffect): boo
     return false;
   }
 
-  // Items without cooldown are usually passive/shop-board modifiers. Apply their
-  // non-damaging stat modifiers at fight start so passive cards like Star Chart
-  // can affect adjacent items without requiring an ITEM_USED event.
-  if (isPassiveRuntimeStatText(effect.rawText)) return true;
-
   if (item.cooldownSeconds !== null) return false;
 
   return isPassiveFightStartEffect(effect);
 }
 
-function isPassiveRuntimeStatText(rawText: string): boolean {
-  return /\b(this|your|adjacent).+\b(has|have|are affected|cooldowns are|for each|for every)\b/i.test(rawText) || /\bfor each\b|\bfor every\b/i.test(rawText);
+function shouldNeverResolveAsTriggered(
+  item: BattleItem,
+  effect: RuntimeEffect
+): boolean {
+  return (
+    isStaticFightStartEffect(item, effect) ||
+    isSelfCooldownHalfFightStartEffect(effect) ||
+    isSelfStatMultiplierFightStartEffect(effect)
+  );
+}
+
+function isSelfCooldownHalfFightStartEffect(effect: RuntimeEffect): boolean {
+  return (
+    effect.kind === "COOLDOWN_MOD" &&
+    effect.target === "SELF" &&
+    /cooldown/i.test(effect.rawText) &&
+    /half|halved|reduced by half|reduce.*by half/i.test(effect.rawText)
+  );
+}
+
+function isSelfStatMultiplierFightStartEffect(effect: RuntimeEffect): boolean {
+  if (effect.target !== "SELF") return false;
+
+  if (
+    effect.kind !== "DAMAGE" &&
+    effect.kind !== "SHIELD" &&
+    effect.kind !== "HEAL" &&
+    effect.kind !== "BURN" &&
+    effect.kind !== "POISON" &&
+    effect.kind !== "REGEN" &&
+    effect.kind !== "CRIT_CHANCE_MOD" &&
+    effect.kind !== "CRIT_DAMAGE_MOD" &&
+    effect.kind !== "MULTICAST_MOD"
+  ) {
+    return false;
+  }
+
+  return (
+    effect.unit === "multiplier" ||
+    /double|triple|quadruple|half|halved/i.test(effect.rawText)
+  );
 }
 
 function isPassiveFightStartEffect(effect: RuntimeEffect): boolean {
@@ -178,7 +218,9 @@ export function conditionMatchesEvent(
   }
 
   if (eventType === "CHARGE_APPLIED") {
-    if (lower.includes("charge")) return sourceIsSelf || targetIsSelf || !mentionsThis(lower);
+    if (lower.includes("charge")) {
+      return sourceIsSelf || targetIsSelf || !mentionsThis(lower);
+    }
   }
 
   if (eventType === "FLYING_STARTED") {
@@ -186,21 +228,31 @@ export function conditionMatchesEvent(
       return sourceIsSelf || targetIsSelf || !mentionsThis(lower);
     }
 
-    if ((lower.includes("while") || lower.includes("is")) && lower.includes("flying") && !lower.includes("stop")) {
+    if (
+      (lower.includes("while") || lower.includes("is")) &&
+      lower.includes("flying") &&
+      !lower.includes("stop")
+    ) {
       return targetIsSelf || !mentionsThis(lower);
     }
   }
 
   if (eventType === "FLYING_STOPPED") {
-    if (lower.includes("stop") && lower.includes("flying")) return sourceIsSelf || targetIsSelf || !mentionsThis(lower);
+    if (lower.includes("stop") && lower.includes("flying")) {
+      return sourceIsSelf || targetIsSelf || !mentionsThis(lower);
+    }
   }
 
   if (eventType === "ITEM_DESTROYED") {
-    if (lower.includes("destroy")) return sourceIsSelf || targetIsSelf || !mentionsThis(lower);
+    if (lower.includes("destroy")) {
+      return sourceIsSelf || targetIsSelf || !mentionsThis(lower);
+    }
   }
 
   if (eventType === "ITEM_REPAIRED") {
-    if (lower.includes("repair")) return sourceIsSelf || targetIsSelf || !mentionsThis(lower);
+    if (lower.includes("repair")) {
+      return sourceIsSelf || targetIsSelf || !mentionsThis(lower);
+    }
   }
 
   return false;
@@ -215,12 +267,14 @@ function mentionsThis(condition: string): boolean {
 }
 
 function isStatusCondition(condition: string, adjective: string, verb: string): boolean {
-  return condition === adjective ||
+  return (
+    condition === adjective ||
     condition.includes(`this is ${adjective}`) ||
     condition.includes(`this is affected by ${verb}`) ||
     condition.includes(`when you ${verb}`) ||
     condition.includes(`when your item ${verb}`) ||
-    condition.includes(verb);
+    condition.includes(verb)
+  );
 }
 
 function areAdjacent(a: BattleItem, b: BattleItem): boolean {

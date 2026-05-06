@@ -86,6 +86,62 @@ const tests: SmokeTest[] = [
     },
   },
   {
+    name: "passive conditional board buff applies once at fight start",
+    run: () =>
+      simulateBattle(
+        board([
+          item({
+            cardId: "passive-weapon-trainer",
+            name: "Passive Weapon Trainer",
+            baseCooldownSeconds: null,
+            tags: ["Property"],
+            effects: [
+              effect({
+                kind: "DAMAGE",
+                target: "YOUR_WEAPONS",
+                targetFilter: "Weapon",
+                attribute: "Damage",
+                value: 50,
+                operation: "GAIN",
+                condition: "When you use a Weapon",
+                rawText: "your Weapons gain +50 Damage for the fight.",
+              }),
+            ],
+          }),
+          item({
+            cardId: "trained-weapon",
+            name: "Trained Weapon",
+            tags: ["Weapon"],
+            effects: [
+              effect({
+                kind: "DAMAGE",
+                target: "ENEMY",
+                attribute: "Damage",
+                value: 100,
+                rawText: "Deal 100 Damage",
+              }),
+            ],
+          }),
+        ]),
+        { durationSeconds: 3, enemyMaxHealth: 5000 }
+      ),
+    assert: (result) => {
+      const weapon = result.finalState.items.find((runtimeItem) => runtimeItem.name === "Trained Weapon");
+      if (!weapon) throw new Error("Trained Weapon missing");
+
+      const trainerEvents = result.events.filter(
+        (event) =>
+          event.type === "ITEM_STAT_MODIFIED" &&
+          event.sourceInstanceId === "0:passive-weapon-trainer" &&
+          event.targetInstanceId === "1:trained-weapon"
+      );
+
+      assertClose("weapon damage bonus", weapon.damageBonus, 50);
+      assertClose("damageDealt", result.totals.damageDealt, 450);
+      assertEqual("trainer events", trainerEvents.length, 1);
+    },
+  },
+  {
     name: "burn stat bonus affects later burn applications",
     run: () =>
       simulateBattle(
@@ -865,7 +921,7 @@ const tests: SmokeTest[] = [
       assertClose("damageDealt", result.totals.damageDealt, 300);
     },
   },
-  {
+    {
     name: "formula cooldown halved",
     run: () =>
       simulateBattle(
@@ -901,7 +957,7 @@ const tests: SmokeTest[] = [
     assert: (result) => {
       const itemState = result.finalState.items[0];
       assertClose("cooldownSeconds", itemState?.cooldownSeconds ?? 0, 2);
-      assertClose("damageDealt", result.totals.damageDealt, 100);
+      assertClose("damageDealt", result.totals.damageDealt, 200);
     },
   },
 
