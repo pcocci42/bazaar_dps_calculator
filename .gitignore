@@ -13,3 +13,4 @@ apps/api/data/import/debug-*.json
 
 .DS_Store
 Thumbs.db
+apps/api/src/sim.zip
