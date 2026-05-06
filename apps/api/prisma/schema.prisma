@@ -22,27 +22,97 @@ model RawCard {
   importedAt   DateTime @default(now())
 
   card Card?
+
+  @@index([source])
+  @@index([sourceCardId])
 }
 
 model Card {
-  id            String        @id @default(uuid())
-  rawCardId     String?       @unique
-  rawCard       RawCard?      @relation(fields: [rawCardId], references: [id])
+  id        String   @id @default(uuid())
+  rawCardId String?  @unique
+  rawCard   RawCard? @relation(fields: [rawCardId], references: [id], onDelete: Cascade)
 
-  name          String
-  hero          String?
-  type          String?
-  rarity        String?
-  size          String?
-  cooldown      Float?
-  damage        Float?
-  text          String?
+  name     String
+  hero     String?
+  type     String?
+  rarity   String?
+  size     String?
+  cooldown Float?
+  damage   Float?
+  text     String?
 
-  source        String
-  patch         String?
+  source String
+  patch  String?
 
   supportStatus SupportStatus @default(UNSUPPORTED)
 
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  tiers CardTier[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([source])
+  @@index([name])
+  @@index([hero])
+  @@index([type])
+  @@index([size])
+}
+
+model CardTier {
+  id String @id @default(uuid())
+
+  cardId String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  tier       String
+  cooldown   Float?
+  ammo       Float?
+  multicast  Float?
+  critChance Float?
+
+  damage        Float?
+  shield        Float?
+  heal          Float?
+  burn          Float?
+  poison        Float?
+  regen         Float?
+  chargeSeconds Float?
+
+  descriptions Json
+
+  effects CardEffect[]
+
+  @@unique([cardId, tier])
+  @@index([tier])
+}
+
+model CardEffect {
+  id String @id @default(uuid())
+
+  cardTierId String
+  cardTier   CardTier @relation(fields: [cardTierId], references: [id], onDelete: Cascade)
+
+  kind            String
+  target          String
+  targetFilter    String?
+  attribute       String?
+  resource        String?
+  value           Float?
+  unit            String?
+  durationSeconds Float?
+  count           Int?
+  operation       String
+  condition       String?
+  formula         String?
+  metadata        Json?
+  isCombatOnly    Boolean @default(false)
+  isPermanent     Boolean @default(false)
+  rawText         String
+
+  @@index([kind])
+  @@index([target])
+  @@index([targetFilter])
+  @@index([attribute])
+  @@index([resource])
+  @@index([operation])
 }
